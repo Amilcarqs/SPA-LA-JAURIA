@@ -12,10 +12,67 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        Int @id @default(autoincrement())
+enum Role {
+  ADMIN
+  GROOMER
+  RECEPTIONIST
+  CLIENT
+}
+
+model Users {
+  id        String @id @default(cuid())
+  name      String?
   email     String @unique
   password  String
-  role      String @default("user")
+
+  // usar enum, NO string
+  role      Role @default(CLIENT)
+
   createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  lastLogin DateTime?
+
+  isVerified Boolean @default(false)
+
+  // RELACIONES INVERSAS
+  emailVerification EmailVerification[]
+
+  clientProfile Client?
+  staffProfile  Staff?
+}
+
+model Client {
+  userId  String @id
+  phone   String?
+  ci      String? @unique
+  address String?
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum StaffType {
+  GROOMER
+  RECEPTIONIST
+}
+
+model Staff {
+  userId    String @id
+  staffType StaffType
+
+  specialty String?
+  shift     String?
+  phone     String?
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailVerification {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
