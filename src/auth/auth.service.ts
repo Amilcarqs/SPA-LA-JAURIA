@@ -16,7 +16,7 @@ import * as bcrypt from 'bcrypt';
 import { MailService } from 'src/mail/mail.service';
 import { randomUUID } from 'crypto';
 import { Role } from 'src/generated/prisma/enums';
-import { Roles } from './roles.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CreateStaffDto } from './dto/create-staff.dto';
 
 @Injectable()

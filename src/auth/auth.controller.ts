@@ -13,9 +13,9 @@ import { AuthService } from './auth.service';
 import { AuthGuard } from './auth.guard';
 import { LoginDto } from './dto/login.dto';
 import { CreateUserDto } from '../users/dto/create-user.dto';
-import { RolesGuard } from './roles.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { Role } from 'src/generated/prisma/enums';
-import { Roles } from './roles.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CreateStaffDto } from './dto/create-staff.dto';
 
 @Controller('auth')

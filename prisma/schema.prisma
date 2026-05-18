@@ -40,6 +40,9 @@ model Users {
 
   clientProfile Client?
   staffProfile  Staff?
+
+  // LOGS DE AUDITORÍA  
+  auditLogs AuditLog[]  
 }
 
 model Client {
@@ -75,4 +78,30 @@ model EmailVerification {
   createdAt  DateTime @default(now())
 
   user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+
+  userId      String?
+  user        Users?   @relation(fields: [userId], references: [id])
+
+  role        Role?
+  action      String
+
+  entityType  String?
+  entityId    String?
+
+  metadata    Json?
+
+  // Dirección IP del usuario  
+ipAddress String?  
+  
+// Navegador / dispositivo / sistema operativo  
+// obtenido desde el header HTTP "User-Agent"
+  userAgent   String?
+
+  success     Boolean @default(true)
+
+  createdAt   DateTime @default(now())
 }

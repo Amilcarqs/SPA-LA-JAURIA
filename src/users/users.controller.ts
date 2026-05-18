@@ -13,8 +13,9 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { AuthGuard } from '../auth/auth.guard';
-import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { AuditAction } from 'src/common/decorators/audit-action.decorators';
 
 @Controller('users')
 export class UsersController {
@@ -32,6 +33,7 @@ export class UsersController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post('staff')
+  @AuditAction({ action: 'CREATE_STAFF', entityType: 'STAFF' })
   async createStaff(@Body() createUserDto: CreateUserDto & { role: string }) {
     const user = await this.usersService.createUser(createUserDto as any);
     const { password, ...rest } = user as any;
@@ -63,8 +65,9 @@ export class UsersController {
     });
   } */
 
-  //@UseGuards(AuthGuard, RolesGuard)
-  //@Roles('admin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @AuditAction({ action: 'UPDATE_STAFF', entityType: 'STAFF' })
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.updateUser({ where: { id }, data: updateUserDto });
@@ -72,6 +75,7 @@ export class UsersController {
 
   //@UseGuards(AuthGuard, RolesGuard)
   //@Roles('admin')
+  @AuditAction({ action: 'DELETE_STAFF', entityType: 'STAFF' })
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.usersService.deleteUser({ id});
