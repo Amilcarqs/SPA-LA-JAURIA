@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 
 import { JwtService } from '@nestjs/jwt';
@@ -10,6 +15,9 @@ import * as bcrypt from 'bcrypt';
 //para email
 import { MailService } from 'src/mail/mail.service';
 import { randomUUID } from 'crypto';
+import { Role } from 'src/generated/prisma/enums';
+import { Roles } from './roles.decorator';
+import { CreateStaffDto } from './dto/create-staff.dto';
 
 @Injectable()
 export class AuthService {
@@ -20,14 +28,15 @@ export class AuthService {
     private mailService: MailService,
   ) {}
 
-  async register(data: any){
+  async register(data: any) {
+    //para clientes
     const existingUser = await this.prisma.users.findUnique({
       where: {
         email: data.email,
-      }
+      },
     });
 
-    if (existingUser ) {
+    if (existingUser) {
       throw new BadRequestException('Email ya registrado');
     }
 
@@ -50,7 +59,7 @@ export class AuthService {
         },
       },
     });
-    
+
     const token = randomUUID();
 
     await this.prisma.emailVerification.create({
@@ -61,26 +70,19 @@ export class AuthService {
       },
     });
 
-    await this.mailService.sendVerificationEmail(
-      user.email,
-      token,
-    );
+    await this.mailService.sendVerificationEmail(user.email, token);
 
     return {
       message: 'Usuario registrado. Verifica tu correo.',
     };
   }
 
-
-
-
   async verifyEmail(token: string) {
-    const verification =
-      await this.prisma.emailVerification.findUnique({
-        where: {
-          token,
-        },
-      });
+    const verification = await this.prisma.emailVerification.findUnique({
+      where: {
+        token,
+      },
+    });
 
     if (!verification) {
       throw new BadRequestException('Token inválido');
@@ -110,16 +112,53 @@ export class AuthService {
     };
   }
 
+  @Roles(Role.ADMIN)
+  async createStaff(data: CreateStaffDto) {
+    // 1. Extraemos los campos que NO pertenecen a la tabla "Users"
+    const { staffType, specialty, shift, phone, ...userData } = data;
 
+    // 2. Hasheamos la contraseña antes de guardar
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+    return this.prisma.users.create({
+      data: {
+        ...userData,
+        password: hashedPassword, // Sobrescribimos con la pass hasheada
+        isVerified: true, // Como lo crea el Admin, lo marcamos verificado
+
+        // 3. Usamos "staffProfile" para crear la relación en la tabla Staff
+        staffProfile: {
+          create: {
+            staffType: staffType,
+            specialty: specialty,
+            shift: shift,
+            phone: phone,
+          },
+        },
+      },
+      include: {
+        staffProfile: true, // Para que la respuesta de Thunder Client muestre todo
+      },
+    });
+  }
+  /*   @Roles(Role.ADMIN) // Solo el Admin puede usar este método
+  async createStaff(data: CreateStaffDto) {
+    return this.prisma.users.create({
+      data: {
+        ...data,
+        // El Admin elige si es GROOMER o RECEPTIONIST
+        staffProfile: { create: { staffType: data.staffType } } 
+      }
+    });
+  } */
 
   async signIn(
-    email: string, 
+    email: string,
     password: string,
   ): Promise<{ access_token: string }> {
     const user = await this.prisma.users.findUnique({
-      where: { email: email } ,
+      where: { email: email },
     });
-
 
     //esto es para la verificacion del email
     /* if (
@@ -132,11 +171,15 @@ export class AuthService {
     } */
 
     if (user?.deletedAt) {
-      throw new NotFoundException('No se encontró el usuario con el correo: ${email}');
+      throw new NotFoundException(
+        'No se encontró el usuario con el correo: ${email}',
+      );
     }
 
     if (!user) {
-      throw new NotFoundException('No se encontró el usuario con el correo: ${email}');
+      throw new NotFoundException(
+        'No se encontró el usuario con el correo: ${email}',
+      );
     }
 
     //verificamos el hash de la contraseña
@@ -146,9 +189,9 @@ export class AuthService {
       throw new UnauthorizedException('Contraseña incorrecta');
     }
 
-    const payload = { sub: user.id , email: user.email , role: user.role};
+    const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       access_token: await this.jwtService.signAsync(payload),
-    }
+    };
   }
 }

@@ -21,7 +21,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('ADMIN')
   @Post()
   async create(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.createUser(createUserDto as any);
@@ -30,7 +30,7 @@ export class UsersController {
   }
 
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles('admin')
+  @Roles('ADMIN')
   @Post('staff')
   async createStaff(@Body() createUserDto: CreateUserDto & { role: string }) {
     const user = await this.usersService.createUser(createUserDto as any);
