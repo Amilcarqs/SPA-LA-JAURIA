@@ -1,0 +1,7 @@
+#esto es para el dockerfile
+node_modules
+dist
+.env
+npm-debug.log
+.git
+.vscode

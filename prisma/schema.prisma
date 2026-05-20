@@ -35,6 +35,15 @@ model Users {
 
   isVerified Boolean @default(false)
 
+  // Cantidad de intentos fallidos consecutivos
+  failedLoginAttempts Int @default(0)
+
+  // Hasta cuándo está bloqueada la cuenta
+  lockedUntil DateTime?
+
+  // Último intento fallido (opcional pero útil)
+  lastFailedLoginAt DateTime?
+
   // RELACIONES INVERSAS
   emailVerification EmailVerification[]
 

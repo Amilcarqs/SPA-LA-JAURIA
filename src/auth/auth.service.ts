@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -15,9 +16,14 @@ import * as bcrypt from 'bcrypt';
 //para email
 import { MailService } from 'src/mail/mail.service';
 import { randomUUID } from 'crypto';
+
 import { Role } from 'src/generated/prisma/enums';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { request } from 'express';
+
+import { Request } from 'express';
+import { AuditService } from 'src/audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +32,7 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
     private mailService: MailService,
+    private auditService: AuditService,
   ) {}
 
   async register(data: any) {
@@ -112,7 +119,7 @@ export class AuthService {
     };
   }
 
-  @Roles(Role.ADMIN)
+  
   async createStaff(data: CreateStaffDto) {
     // 1. Extraemos los campos que NO pertenecen a la tabla "Users"
     const { staffType, specialty, shift, phone, ...userData } = data;
@@ -155,20 +162,34 @@ export class AuthService {
   async signIn(
     email: string,
     password: string,
+    req: Request,
   ): Promise<{ access_token: string }> {
     const user = await this.prisma.users.findUnique({
       where: { email: email },
     });
 
-    //esto es para la verificacion del email
-    /* if (
-      user?.role === 'CLIENT' &&
-      !user.isVerified
-    ) {
-      throw new BadRequestException(
-        'Debes verificar tu email',
-      );
-    } */
+    const context = {
+      userId: user?.id,
+      role: user?.role,
+
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    };
+
+    //por si tiene bloqueo, lockeduntil es de tipo date
+    if (user?.lockedUntil && user.lockedUntil > new Date()) {
+      /*  aqui podemos auditar que la cuenta esta bloqueada 
+    await this.auditService.logAccountLocked(
+      context,
+      user.lockedUntil,
+
+    ) */ throw new ForbiddenException('Cuenta bloqueada temporalmente');
+    }
+
+    //para ver si verifico el correo
+    if (user?.role === 'CLIENT' && !user.isVerified) {
+      throw new BadRequestException('Debes verificar tu email');
+    }
 
     if (user?.deletedAt) {
       throw new NotFoundException(
@@ -177,17 +198,60 @@ export class AuthService {
     }
 
     if (!user) {
-      throw new NotFoundException(
-        'No se encontró el usuario con el correo: ${email}',
-      );
+      throw new NotFoundException('Credenciales invalidas');
     }
 
     //verificamos el hash de la contraseña
     const isValidPassword = await bcrypt.compare(password, user.password);
 
+    //si la contra es incorrecta aumentamos los intentos
     if (!isValidPassword) {
-      throw new UnauthorizedException('Contraseña incorrecta');
+      const attempts = user.failedLoginAttempts + 1;
+
+      const updateData: any = {
+        failedLoginAttempts: attempts,
+        lastFailedLoginAt: new Date(),
+      };
+
+      // AUDITORÍA LOGIN FALLIDO
+      await this.auditService.logLoginFailed(context, attempts);
+
+      // Bloquear al llegar al límite
+      if (attempts >= 5) {
+        updateData.lockedUntil = new Date(
+          Date.now() + 15 * 60 * 1000, // 15 minutos de bloqueo
+        );
+
+        //audit cuenta bloqueada
+        await this.auditService.logAccountLocked(
+          context,
+          updateData.lockedUntil,
+        );
+      }
+
+      //actualizamos datos
+      await this.prisma.users.update({
+        where: { id: user.id },
+        data: updateData,
+      });
+
+      throw new UnauthorizedException('Credenciales inválidas');
     }
+
+    //LOGIN EXITOSO
+    //si no paso nada continuamos con el login y ponemos los intentos en 0
+    await this.prisma.users.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastFailedLoginAt: null,
+        lastLogin: new Date(),
+      },
+    });
+
+    //auditamos el login exitoso
+    await this.auditService.logLoginSuccess(context);
 
     const payload = { sub: user.id, email: user.email, role: user.role };
     return {

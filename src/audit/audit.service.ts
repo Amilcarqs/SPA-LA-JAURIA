@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Ajusta la ruta a tu PrismaService
 import { Role } from 'src/generated/prisma/enums';
 
+import { AuditAction } from './audit.constants';
+import { AuditContext } from './audit.types';
+
 export interface CreateAuditDto {
   userId?: string;
   role?: Role;
@@ -37,5 +40,73 @@ export class AuditService {
       // Evita que un fallo en la auditoría rompa el flujo principal de la app
       console.error('Error al guardar el log de auditoría:', error);
     }
+  }
+
+   // ======================================
+  // LOGIN EXITOSO
+  // ======================================
+
+  async logLoginSuccess(context: AuditContext) {
+    await this.createLog({
+      action: AuditAction.LOGIN_SUCCESS,
+
+      userId: context.userId,
+      role: context.role,
+
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+
+      success: true,
+    });
+  }
+
+  // ======================================
+  // LOGIN FALLIDO
+  // ======================================
+
+  async logLoginFailed(
+    context: AuditContext,
+    failedAttempts: number,
+  ) {
+    await this.createLog({
+      action: AuditAction.LOGIN_FAILED,
+
+      userId: context.userId,
+      role: context.role,
+
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+
+      success: false,
+
+      metadata: {
+        failedAttempts,
+      },
+    });
+  }
+
+  // ======================================
+  // CUENTA BLOQUEADA
+  // ======================================
+
+  async logAccountLocked(
+    context: AuditContext,
+    lockedUntil: Date,
+  ) {
+    await this.createLog({
+      action: AuditAction.ACCOUNT_LOCKED,
+
+      userId: context.userId,
+      role: context.role,
+
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+
+      success: false,
+
+      metadata: {
+        lockedUntil,
+      },
+    });
   }
 }
