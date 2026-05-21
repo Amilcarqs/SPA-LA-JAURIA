@@ -1,7 +1,7 @@
 # para crear una imagen personalizada
 # por ahora no la usaremos
 
-FROM node:22-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -9,7 +9,7 @@ COPY . .
 RUN npm run build
 RUN npx prisma generate
 
-FROM node:22-alpine AS runtime
+FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/package*.json ./
