@@ -1,0 +1,89 @@
+import { 
+    Body, 
+    Controller, 
+    Post, 
+    HttpCode, 
+    HttpStatus,
+    Get,
+    Request,
+    UseGuards, 
+    Query
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { AuthGuard } from './auth.guard';
+import { LoginDto } from './dto/login.dto';
+import { CreateUserDto } from '../users/dto/create-user.dto';
+import { RolesGuard } from './guards/roles.guard';
+import { Role } from '@prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CreateStaffDto } from './dto/create-staff.dto';
+
+@Controller('auth')
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService
+  ) {}
+
+
+  @Get('verify-email')
+  verifyEmail(@Query('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('login')
+  signIn(@Body() { email, password }: LoginDto, @Request() req) {
+    return this.authService.signIn(email, password, req);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('profile')
+  getProfile(@Request() req){
+    return this.authService.getProfile(req.user.sub);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('2fa/setup')
+  async setupTwoFactor(@Request() req) {
+    return this.authService.generateTwoFactorSecret(req.user.email);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('2fa/enable')
+  async enableTwoFactor(@Request() req, @Body('token') token: string) {
+    return this.authService.enableTwoFactor(req.user.sub, token);
+  }
+
+  @UseGuards(AuthGuard)
+  @Post('2fa/disable')
+  async disableTwoFactor(@Request() req) {
+    return this.authService.disableTwoFactor(req.user.sub);
+  }
+
+  @Post('2fa/verify-login')
+  @HttpCode(HttpStatus.OK)
+  async verifyTwoFactorLogin(@Body() body: { email: string; token: string }) {
+    return this.authService.verifyTwoFactorLogin(body.email, body.token);
+  }
+
+  @HttpCode(HttpStatus.CREATED)
+  @Post('register')
+  async register(@Body() createUserDto: CreateUserDto) {
+    // force client role
+    const data = { ...createUserDto, role: (createUserDto as any).role ?? 'CLIENT' } as any;
+    return this.authService.register(data);
+  }
+
+  // 2. Registro manual para Personal (Solo Admin)
+  @Post('create-staff')
+  @UseGuards(AuthGuard, RolesGuard) // Aplicamos el guardia de roles
+  @Roles(Role.ADMIN)      // Solo usuarios con rol ADMIN pueden entrar aquí
+  async createStaff(@Body() data: CreateStaffDto) {
+    return this.authService.createStaff(data);
+  }
+
+/*   @Post('register')
+  register(@Body() dto: any) {
+    return this.authService.register(dto);
+  } */
+}
